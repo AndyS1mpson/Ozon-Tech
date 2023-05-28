@@ -11,10 +11,10 @@ import (
 )
 
 // Make a request to a third-party service 
-func DoRequest(ctx context.Context, req any, urlPath string, httpMethod string) (*http.Response, error) {
+func DoRequest[Req any, Res any](ctx context.Context, req Req, resp *Res, urlPath string, httpMethod string) error {
 	rawData, err := json.Marshal(&req)
 	if err != nil {
-		return nil, fmt.Errorf("encode request: %w", err)
+		return fmt.Errorf("encode request: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -22,18 +22,23 @@ func DoRequest(ctx context.Context, req any, urlPath string, httpMethod string) 
 
 	httpRequest, err := http.NewRequestWithContext(ctx, httpMethod, urlPath, bytes.NewBuffer(rawData))
 	if err != nil {
-		return nil, fmt.Errorf("prepare request: %w", err)
+		return fmt.Errorf("prepare request: %w", err)
 	}
 
 	httpResponse, err := http.DefaultClient.Do(httpRequest)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		return fmt.Errorf("do request: %w", err)
 	}
 
 	if httpResponse.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("wrong response status code: %w", err)
+		return fmt.Errorf("wrong response status code: %w", err)
 	}
 
+	
+	err = json.NewDecoder(httpResponse.Body).Decode(&resp)
+	if err != nil {
+		return fmt.Errorf("decode stock request: %w", err)
+	}
 
-	return httpResponse, nil
+	return nil
 }

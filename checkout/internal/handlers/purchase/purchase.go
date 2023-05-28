@@ -12,6 +12,11 @@ type Handler struct {
 	Service *domain.Service
 }
 
+// Create New Handler instance
+func New(service *domain.Service) *Handler{
+	return &Handler{Service: service}
+}
+
 // Describe fields from the request body
 type Request struct {
 	User int64 `json:"user" yaml:"user"`

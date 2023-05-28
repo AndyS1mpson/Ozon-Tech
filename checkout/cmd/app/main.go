@@ -27,22 +27,16 @@ func main() {
 
 	service := domain.New(loms.New(cfg.Services.Loms), products.New(cfg.Services.Products, cfg.Token))
 
-	addToCartHandler := &addtocart.Handler{
-		Service: service,
-	}
+	addToCartHandler := addtocart.New(service)
 	http.Handle("/addToCart", srvwrapper.New(addToCartHandler.Handle))
 
-	deleteFromCartHandler := &deletefromcart.Handler{
-		Service: service,
-	}
+	deleteFromCartHandler := deletefromcart.New(service)
 	http.Handle("/deleteFromCart", srvwrapper.New(deleteFromCartHandler.Handle))
 
-	listCartHandler := &listcart.Handler{Service: service}
+	listCartHandler := listcart.New(service)
 	http.Handle("/listCart", srvwrapper.New(listCartHandler.Handle))
 
-	purchaseHandler := &purchase.Handler{
-		Service: service,
-	}
+	purchaseHandler := purchase.New(service)
 	http.Handle("/purchase", srvwrapper.New(purchaseHandler.Handle))
 
 	err = http.ListenAndServe(port, nil)

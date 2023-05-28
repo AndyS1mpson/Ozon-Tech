@@ -2,7 +2,6 @@
 package srvwrapper
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"log"
@@ -32,16 +31,14 @@ func (w *Wrapper[Req, Res]) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 
 	err := json.NewDecoder(req.Body).Decode(&reqBody)
 	if err != nil {
-		rw.WriteHeader(http.StatusBadRequest)
-		writeErrorText(rw, "parse request", err)
+		http.Error(rw, err.Error(),http.StatusBadRequest)
 	}
 
 	reqValidation, ok := any(req).(Validator)
 	if ok {
 		errValidation := reqValidation.Validate()
 		if errValidation != nil {
-			rw.WriteHeader(http.StatusBadRequest)
-			writeErrorText(rw, "bad request", errValidation)
+			http.Error(rw, err.Error(),http.StatusBadRequest)
 			return
 		}
 	}
@@ -49,29 +46,16 @@ func (w *Wrapper[Req, Res]) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 	resp, err := w.handler(req.Context(), reqBody)
 	if err != nil {
 		log.Printf("executor fail: %s", err)
-		rw.WriteHeader(http.StatusInternalServerError)
-		writeErrorText(rw, "exec handler", err)
+		http.Error(rw, err.Error(),http.StatusInternalServerError)
 		return
 	}
 
 	rawData, err := json.Marshal(&resp)
 	if err != nil {
-		rw.WriteHeader(http.StatusInternalServerError)
-		writeErrorText(rw, "decode response", err)
+		http.Error(rw, err.Error(),http.StatusInternalServerError)
 		return
 	}
 
 	_, _ = rw.Write(rawData)
 
-}
-
-// Saves an error in the specified format to the response object
-func writeErrorText(w http.ResponseWriter, text string, err error) {
-	buf := bytes.NewBufferString(text)
-
-	buf.WriteString(": ")
-	buf.WriteString(err.Error())
-	buf.WriteByte('\n')
-
-	w.Write(buf.Bytes())
 }

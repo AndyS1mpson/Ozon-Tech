@@ -11,6 +11,11 @@ type Handler struct {
 	Service *domain.Service
 }
 
+// Create New Handler instance
+func New(service *domain.Service) *Handler{
+	return &Handler{Service: service}
+}
+
 // Describe user good
 type Good struct {
 	SKU   uint32 `json:"sku"`

@@ -3,8 +3,6 @@ package products
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/url"
 	"route256/checkout/internal/domain"
 	"route256/libs/clientwrapper"
@@ -42,15 +40,10 @@ func New(clientUrl string, token string) *Client {
 func (c *Client) GetProductBySKU(ctx context.Context, sku uint32) (domain.ProductInfo, error) {
 	requestProduct := ProductsRequest{Token: c.token, SKU: sku}
 
-	httpResponse, err := clientwrapper.DoRequest(ctx, requestProduct, c.pathProducts, "POST")
+	responseProduct := &ProductsResponse{}
+	err := clientwrapper.DoRequest(ctx, requestProduct, responseProduct, c.pathProducts, "POST")
 	if err != nil {
 		return domain.ProductInfo{}, err
-	}
-
-	responseProduct := ProductsResponse{}
-	err = json.NewDecoder(httpResponse.Body).Decode(&responseProduct)
-	if err != nil {
-		return domain.ProductInfo{}, fmt.Errorf("decode stock request: %w", err)
 	}
 
 	return domain.ProductInfo{

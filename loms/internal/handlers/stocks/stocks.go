@@ -11,6 +11,11 @@ type Handler struct {
 	Service *domain.Service
 }
 
+// Create New Handler instance
+func New(service *domain.Service) *Handler{
+	return &Handler{Service: service}
+}
+
 // Describe the quantity of goods in stock
 type StockItem struct {
 	WarehouseID int64  `json:"warehouseID"`

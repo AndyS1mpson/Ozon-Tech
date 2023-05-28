@@ -17,19 +17,20 @@ const port = ":8081"
 
 // Service start point
 func main() {
-	stocksHandler := &stocks.Handler{Service: domain.New()}
+	service := domain.New()
+	stocksHandler := stocks.New(service)
 	http.Handle("/stocks", srvwrapper.New(stocksHandler.Handle))
 
-	createGoodHandler := &createorder.Handler{Service: domain.New()}
+	createGoodHandler := createorder.New(service)
 	http.Handle("/createOrder", srvwrapper.New(createGoodHandler.Handle))
 
-	listOrderHandler := &listorder.Handler{Service: domain.New()}
+	listOrderHandler := listorder.New(service)
 	http.Handle("/listOrder", srvwrapper.New(listOrderHandler.Handle))
 
-	orderPayed := &orderpayed.Handler{Service: domain.New()}
+	orderPayed := orderpayed.New(service)
 	http.Handle("/orderPayed", srvwrapper.New(orderPayed.Handle))
 
-	cancelOrder := &cancelorder.Handler{Service: domain.New()}
+	cancelOrder := cancelorder.New(service)
 	http.Handle("/cancelOrder", srvwrapper.New(cancelOrder.Handle))
 
 	err := http.ListenAndServe(port, nil)
