@@ -1,0 +1,4 @@
+token: "ypur token for access to product service"
+services:
+  loms: "loms:50052"
+  products: "product service host"

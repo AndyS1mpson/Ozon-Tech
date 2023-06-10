@@ -4,47 +4,47 @@ package domain
 import (
 	"context"
 	"errors"
+	"fmt"
+	"route256/checkout/internal/model"
 	"sync"
 )
-
-// Describe the user's cart
-type UserCart struct {
-	Items      []Item
-	TotalPrice uint32
-}
 
 var (
 	ErrGetProductsInfo = errors.New("can not get all products")
 )
 
 // Get a list of items in the user's cart
-func (s *Service) GetListCartWithTotalPrice(ctx context.Context, user int64) (*UserCart, error) {
-
-	// Mock getting a list of items from the user cart
-	userCart := Cart{
-		OrderID: 1,
-		Items: []CartItem{
-			{SKU: 773297411, Count: 5},
-		},
+func (s *Service) ListCart(ctx context.Context, user model.UserID) (model.UserCartWithTotal, error) {
+	cart, err := s.cart.GetCartByUserID(ctx, user)
+	if err != nil {
+		cart, err = s.cart.CreateCart(ctx, user)
+		if err != nil {
+			return model.UserCartWithTotal{}, fmt.Errorf("error creating cart: %v", err)
+		}
 	}
 
-	result := make([]Item, 0, len(userCart.Items))
+	userCart, err := s.cart.ListCart(ctx, cart)
+	if err != nil {
+		return model.UserCartWithTotal{}, fmt.Errorf("can not get cart info: %v", err)
+	}
+
+	result := make([]model.Good, 0, len(userCart))
 
 	var wg sync.WaitGroup
-	wg.Add(len(userCart.Items))
+	wg.Add(len(userCart))
 	var mu sync.Mutex
 
-	for i := 0; i < len(userCart.Items); i++ {
+	for i := 0; i < len(userCart); i++ {
 		go func(index int) {
 			defer wg.Done()
-			item, err := s.productChecker.GetProductBySKU(ctx, userCart.Items[index].SKU)
+			item, err := s.productChecker.GetProduct(ctx, userCart[index].SKU)
 			if err != nil {
 				return
 			}
 			mu.Lock()
-			result = append(result, Item{
-				SKU:   userCart.Items[index].SKU,
-				Count: userCart.Items[index].Count,
+			result = append(result, model.Good{
+				SKU:   userCart[index].SKU,
+				Count: userCart[index].Count,
 				Name:  item.Name,
 				Price: item.Price,
 			})
@@ -54,8 +54,8 @@ func (s *Service) GetListCartWithTotalPrice(ctx context.Context, user int64) (*U
 
 	wg.Wait()
 
-	if len(userCart.Items) != len(result) {
-		return nil, ErrGetProductsInfo
+	if len(userCart) != len(result) {
+		return model.UserCartWithTotal{}, ErrGetProductsInfo
 	}
 
 	var totalPrice uint32 = 0
@@ -63,5 +63,5 @@ func (s *Service) GetListCartWithTotalPrice(ctx context.Context, user int64) (*U
 		totalPrice += uint32(v.Count) * v.Price
 	}
 
-	return &UserCart{Items: result, TotalPrice: totalPrice}, nil
+	return model.UserCartWithTotal{Items: result, TotalPrice: totalPrice}, nil
 }

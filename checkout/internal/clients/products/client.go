@@ -3,51 +3,51 @@ package products
 
 import (
 	"context"
-	"net/url"
-	"route256/checkout/internal/domain"
-	"route256/libs/clientwrapper"
+	"fmt"
+	"route256/checkout/internal/model"
+	"route256/checkout/pkg/product_v1"
+
+	"google.golang.org/grpc"
 )
 
 const (
 	productsPath = "get_product"
 )
 
-// Describe fields of the body of the request to the product service
-type ProductsRequest struct {
-	Token string `json:"token"`
-	SKU   uint32 `json:"sku"`
-}
-
-// Describe the response body of the product service
-type ProductsResponse struct {
-	Name  string `json:"name"`
-	Price uint32 `json:"price"`
-}
-
 // Implement interaction with the product service
 type Client struct {
-	pathProducts string
-	token        string
+	productAddress string
+	token          string
 }
 
 // Creates a new client instance
-func New(clientUrl string, token string) *Client {
-	productUrl, _ := url.JoinPath(clientUrl, productsPath)
-	return &Client{pathProducts: productUrl, token: token}
+func New(address string, token string) *Client {
+	return &Client{productAddress: address, token: token}
 }
 
 // Show a list of products in the user's cart
-func (c *Client) GetProductBySKU(ctx context.Context, sku uint32) (domain.ProductInfo, error) {
-	requestProduct := ProductsRequest{Token: c.token, SKU: sku}
-
-	responseProduct := &ProductsResponse{}
-	err := clientwrapper.DoRequest(ctx, requestProduct, responseProduct, c.pathProducts, "POST")
-	if err != nil {
-		return domain.ProductInfo{}, err
+func (c *Client) GetProduct(ctx context.Context, sku uint32) (model.Product, error) {
+	requestProduct := &product_v1.GetProductRequest{
+		Token: c.token,
+		Sku:   sku,
 	}
 
-	return domain.ProductInfo{
-		Name:  responseProduct.Name,
-		Price: responseProduct.Price,
+	// Connect to loams service
+	con, err := grpc.Dial(c.productAddress, grpc.WithInsecure())
+	if err != nil {
+		return model.Product{}, fmt.Errorf("can not connect to server loms: %v", err)
+	}
+	defer con.Close()
+
+	// Create client for loms service
+	productClient := product_v1.NewProductServiceClient(con)
+	// Do request
+	resp, err := productClient.GetProduct(ctx, requestProduct)
+	if err != nil {
+		return model.Product{}, fmt.Errorf("send request error: %v", err)
+	}
+	return model.Product{
+		Name:  resp.Name,
+		Price: resp.Price,
 	}, nil
 }

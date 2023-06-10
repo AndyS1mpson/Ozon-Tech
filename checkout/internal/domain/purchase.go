@@ -4,22 +4,26 @@ package domain
 import (
 	"context"
 	"fmt"
+	"route256/checkout/internal/model"
 )
 
 // Create a custom order
-func (s *Service) Purchase(ctx context.Context, user int64) (OrderID, error) {
+func (s *Service) Purchase(ctx context.Context, user model.UserID) (model.OrderID, error) {
 
-	// Mock getting a list of items from the user cart
-	cartItems := []CartItem{
-		{SKU: 1, Count: 5},
-		{SKU: 2, Count: 2},
-		{SKU: 3, Count: 10},
-	}
-
-	order, err := s.lomsChecker.CreateOrder(ctx, user, cartItems)
+	cart, err := s.cart.GetCartByUserID(ctx, user)
 	if err != nil {
-		return OrderID{}, fmt.Errorf("purchase order: %w", err)
+		return 0, fmt.Errorf("user have empty cart: %w", err)
 	}
 
-	return order, nil
+	cartItems, err := s.cart.ListCart(ctx, cart)
+	if err != nil {
+		return 0, fmt.Errorf("get user cart items: %w", err)
+	}
+
+	orderID, err := s.lomsChecker.CreateOrder(ctx, user, cartItems)
+	if err != nil {
+		return 0, fmt.Errorf("purchase order: %w", err)
+	}
+
+	return orderID, nil
 }

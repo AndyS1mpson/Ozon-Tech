@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package loms;
+
+option go_package = "route256/checkout/pkg/loms_v1";
+
+
+service Loms {
+    rpc Stocks(StocksRequest) returns(StocksResponse);
+    rpc CreateOrder(CreateOrderRequest) returns(CreateOrderResponse);
+
+}
+
+message Stock {
+    int64 warehouseID = 1;
+    uint64 count = 2;
+}
+
+message StocksRequest {
+    uint32 sku = 1;
+}
+
+
+message StocksResponse {
+    repeated Stock stocks = 1;
+}
+
+message OrderItem {
+    uint32 sku = 1;
+    uint32 count = 2;
+}
+
+message CreateOrderRequest {
+    int64 user = 1;
+    repeated OrderItem items = 2;
+}
+
+
+message CreateOrderResponse {
+    int64 orderID = 1;
+}

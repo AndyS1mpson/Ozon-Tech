@@ -3,101 +3,86 @@ package loms
 
 import (
 	"context"
-	"net/url"
-	"route256/checkout/internal/domain"
-	"route256/libs/clientwrapper"
+
+	"fmt"
+	"route256/checkout/internal/model"
+	"route256/checkout/pkg/loms_v1"
+
+	"google.golang.org/grpc"
 )
-
-const (
-	stocksPath   = "stocks"
-	purchasePath = "createOrder"
-)
-
-// Describe fields of the body of the stocks request to the service loms
-type StocksRequest struct {
-	SKU uint32 `json:"sku"`
-}
-
-// Describe stock item from response
-type Stock struct {
-	WarehouseID int64  `json:"warehouseID"`
-	Count       uint64 `json:"count"`
-}
-
-// Describe the bodies of the request from the stocks endpoint
-// of the loms service
-type StocksResponse struct {
-	Stocks []Stock `json:"stocks"`
-}
 
 // Implement interaction with the loms service
 type Client struct {
-	pathStock    string
-	pathPurchase string
+	lomsAddress string
 }
 
 // Creates a new client instance
-func New(clientUrl string) *Client {
-	stockUrl, _ := url.JoinPath(clientUrl, stocksPath)
-	purchaseUrl, _ := url.JoinPath(clientUrl, purchasePath)
-	return &Client{pathStock: stockUrl, pathPurchase: purchaseUrl}
+func New(clientAddress string) *Client {
+	return &Client{lomsAddress: clientAddress}
 }
 
 // Get the quantity of goods from all warehouses from the service loms
-func (c *Client) GetStocksBySKU(ctx context.Context, sku uint32) ([]domain.Stock, error) {
-	requestStocks := StocksRequest{SKU: sku}
-
-	responseStocks := &StocksResponse{}
-	err := clientwrapper.DoRequest(ctx, requestStocks, responseStocks, c.pathStock, "GET")
-	if err != nil {
-		return []domain.Stock{}, err
+func (c *Client) GetStocksBySKU(ctx context.Context, sku uint32) ([]model.Stock, error) {
+	requestStocks := &loms_v1.StocksRequest{
+		Sku: sku,
 	}
 
-	result := make([]domain.Stock, 0, len(responseStocks.Stocks))
-	for _, v := range responseStocks.Stocks {
-		result = append(result, domain.Stock{
-			WarehouseID: uint64(v.WarehouseID),
-			Count:       v.Count,
+	// Connect to loams service
+	con, err := grpc.Dial(c.lomsAddress, grpc.WithInsecure())
+	if err != nil {
+		return nil, fmt.Errorf("can not connect to server loms: %v", err)
+	}
+	defer con.Close()
+
+	// Create client for loms service
+	lomsClient := loms_v1.NewLomsClient(con)
+
+	// Do request
+	resp, err := lomsClient.Stocks(ctx, requestStocks)
+	if err != nil {
+		return nil, fmt.Errorf("send request error: %v", err)
+	}
+
+	items := []model.Stock{}
+	for _, item := range resp.GetStocks() {
+		items = append(items, model.Stock{
+			WarehouseID: uint64(item.GetWarehouseID()),
+			Count:       item.GetCount(),
 		})
 	}
 
-	return result, nil
-}
-
-// Describe user good
-type PurchaseItem struct {
-	SKU   uint32 `json:"sku"`
-	Count uint16 `json:"count"`
-}
-
-// Describe fields of the body of the purchase request to the service loms
-type PurchaseRequest struct {
-	User  int64          `json:"user"`
-	Items []PurchaseItem `json:"items"`
-}
-
-// Describe the bodies of the request from the purchase endpoint
-// of the loms service
-type PurchaseResponse struct {
-	OrderID int64 `json:"orderID"`
+	return items, nil
 }
 
 // Create user order
-func (c *Client) CreateOrder(ctx context.Context, user int64, userGoods []domain.CartItem) (domain.OrderID, error) {
-	items := make([]PurchaseItem, 0, len(userGoods))
+func (c *Client) CreateOrder(ctx context.Context, user model.UserID, userGoods []model.CartItem) (model.OrderID, error) {
+	items := make([]*loms_v1.OrderItem, 0, len(userGoods))
 	for _, v := range userGoods {
-		items = append(items, PurchaseItem{
-			SKU:   v.SKU,
-			Count: v.Count,
+		items = append(items, &loms_v1.OrderItem{
+			Sku:   v.SKU,
+			Count: uint32(v.Count),
 		})
 	}
-	requestPurchase := PurchaseRequest{User: user, Items: items}
-
-	responseOrder := &PurchaseResponse{}
-	err := clientwrapper.DoRequest(ctx, requestPurchase, responseOrder, c.pathPurchase, "GET")
-	if err != nil {
-		return domain.OrderID{}, err
+	requestPurchase := &loms_v1.CreateOrderRequest{
+		User:  int64(user),
+		Items: items,
 	}
 
-	return domain.OrderID{ID: responseOrder.OrderID}, nil
+	// Connect to loams service
+	con, err := grpc.Dial(c.lomsAddress, grpc.WithInsecure())
+	if err != nil {
+		return 0, fmt.Errorf("can not connect to server loms: %v", err)
+	}
+	defer con.Close()
+
+	// Create client for loms service
+	lomsClient := loms_v1.NewLomsClient(con)
+
+	// Do request
+	resp, err := lomsClient.CreateOrder(ctx, requestPurchase)
+	if err != nil {
+		return 0, fmt.Errorf("send request error: %v", err)
+	}
+
+	return model.OrderID(resp.GetOrderID()), nil
 }

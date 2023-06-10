@@ -17,6 +17,9 @@ type Config struct {
 		Loms     string `yaml:"loms"`
 		Products string `yaml:"products"`
 	} `yaml:"services"`
+	Postgres struct {
+		ConnectionString string `yaml:"connection_string"`
+	} `yaml:"postgres"`
 }
 
 // Create a new instance of the config

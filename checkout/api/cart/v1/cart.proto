@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package cart;
+
+option go_package = "route256/checkout/pkg/cart_v1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "validate/validate.proto";
+
+
+service Cart {
+    rpc AddToCart(AddToCartRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/addToCart"
+            body: "*"
+        };
+    };
+    rpc DeleteFromCart(DeleteFromCartRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/deleteFromCart"
+            body: "*"
+        };
+    };
+    rpc ListCart(ListCartRequest) returns (ListCartResponse) {
+        option (google.api.http) = {
+            post: "/listCartRequest"
+            body: "*"
+        };
+    };
+    rpc Purchase(PurchaseRequest) returns (PurchaseResponse) {
+        option (google.api.http) = {
+            post: "/purchase"
+            body: "*"
+        };
+    };
+}
+
+message CartGoodInfo {
+    uint32 sku = 1 [(validate.rules).uint32.gt = 0];
+    uint32 count = 2 [(validate.rules).uint32.gt = 0];
+    string name = 3 [(validate.rules).string.min_len = 3];
+    uint32 price = 4 [(validate.rules).uint32.gt = 0];
+}
+
+message AddToCartRequest {
+    int64 user = 1 [(validate.rules).int64.gt = 0];
+    uint32 sku = 2 [(validate.rules).uint32.gt = 0];
+    uint32 count = 3 [(validate.rules).uint32.gt = 0];
+}
+
+
+message DeleteFromCartRequest {
+    int64 user = 1 [(validate.rules).int64.gt = 0];
+    uint32 sku = 2 [(validate.rules).uint32.gt = 0];
+    uint32 count = 3 [(validate.rules).uint32.gt = 0];
+}
+
+message ListCartRequest {
+    int64 user = 1 [(validate.rules).int64.gt = 0];
+}
+
+message ListCartResponse {
+    repeated CartGoodInfo items = 1;
+    uint32 totalPrice = 2;
+}
+
+message PurchaseRequest {
+    int64 user = 1 [(validate.rules).int64.gt = 0];
+}
+
+message PurchaseResponse {
+    int64 orderID = 1;
+}

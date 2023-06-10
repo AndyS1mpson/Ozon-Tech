@@ -1,3 +1,4 @@
 /bin
 config.yaml
 **/.DS_Store
+/vendor-proto

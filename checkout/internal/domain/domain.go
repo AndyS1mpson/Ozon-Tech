@@ -1,66 +1,42 @@
 // Description of things common to the domain layer
 package domain
 
-import "context"
-
-// Describe the amount of goods in stock
-type Stock struct {
-	WarehouseID uint64
-	Count       uint64
-}
-
-// Product information
-type ProductInfo struct {
-	Name  string
-	Price uint32
-}
-
-// Describe product
-type Item struct {
-	SKU   uint32
-	Count uint16
-	Name  string
-	Price uint32
-}
-
-// Describe user order id
-type OrderID struct {
-	ID int64
-}
-
-// Describe cart item
-type CartItem struct {
-	SKU   uint32
-	Count uint16
-}
-
-// Describe user cart
-type Cart struct {
-	OrderID int64
-	Items   []CartItem
-}
+import (
+	"context"
+	"route256/checkout/internal/model"
+)
 
 // Describe methods to check the availability of goods in stock
 type LomsChecker interface {
-	GetStocksBySKU(ctx context.Context, sku uint32) ([]Stock, error)
-	CreateOrder(ctx context.Context, user int64, userGoods []CartItem) (OrderID, error)
+	GetStocksBySKU(ctx context.Context, sku uint32) ([]model.Stock, error)
+	CreateOrder(ctx context.Context, user model.UserID, userGoods []model.CartItem) (model.OrderID, error)
 }
 
 // Describes the method of retrieving product information
 type ProductChecker interface {
-	GetProductBySKU(ctx context.Context, sku uint32) (ProductInfo, error)
+	GetProduct(ctx context.Context, sku uint32) (model.Product, error)
+}
+
+type CartRepository interface {
+	CreateCart(ctx context.Context, user model.UserID) (model.UserCartID, error)
+	GetCartByUserID(ctx context.Context, userID model.UserID) (model.UserCartID, error)
+	UpdateOrAddToCart(ctx context.Context, cart int64, sku uint32, count uint16) error
+	DeleteFromCart(ctx context.Context, user int64, sku uint32, count uint16) error
+	ListCart(ctx context.Context, cart model.UserCartID) ([]model.CartItem, error)
 }
 
 // Provide access to the business logic of the service
 type Service struct {
 	lomsChecker    LomsChecker
 	productChecker ProductChecker
+	cart           CartRepository
 }
 
 // Create a new Service instance
-func New(lomsChecker LomsChecker, productChecker ProductChecker) *Service {
+func New(lomsChecker LomsChecker, productChecker ProductChecker, cart CartRepository) *Service {
 	return &Service{
 		lomsChecker:    lomsChecker,
 		productChecker: productChecker,
+		cart:           cart,
 	}
 }

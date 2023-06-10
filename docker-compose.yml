@@ -1,17 +1,121 @@
 version: "3.1"
 services:
+  checkout_db:
+    image: postgres:15.1
+    container_name: checkout_db
+    environment:
+      - POSTGRES_USER=${CH_POSTGRES_USER}
+      - POSTGRES_DB=${CH_POSTGRES_DB}
+      - POSTGRES_PASSWORD=${CH_POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    env_file:
+      - .env
+    volumes:
+      - ./ch_pgdata:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $CH_POSTGRES_USER -d $CH_POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+
+  loms_db:
+    image: postgres:15.1
+    container_name: loms_db
+    environment:
+      - POSTGRES_USER=${LOMS_POSTGRES_USER}
+      - POSTGRES_DB=${LOMS_POSTGRES_DB}
+      - POSTGRES_PASSWORD=${LOMS_POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    env_file:
+      - .env
+    volumes:
+      - ./loms_pgdata:/var/lib/postgresql/data
+    ports:
+      - 5433:5433
+    command: -p 5433
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $LOMS_POSTGRES_USER -d $LOMS_POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+
+  ch_pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    container_name: ch_pgbouncer
+    restart: always
+    ports:
+      - 6432:6432
+    environment:
+      - DATABASES_HOST=checkout_db
+      - DATABASES_PORT=5432
+      - DATABASES_USER=${CH_POSTGRES_USER}
+      - DATABASES_PASSWORD=${CH_POSTGRES_PASSWORD}
+      - DATABASES_DB=${CH_POSTGRES_DB}
+    depends_on:
+      - checkout_db
+
+  loms_pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    container_name: loms_pgbouncer
+    restart: always
+    ports:
+      - 6433:6432
+    environment:
+      - DATABASES_HOST=loms_db
+      - DATABASES_PORT=5433
+      - DATABASES_USER=${LOMS_POSTGRES_USER}
+      - DATABASES_PASSWORD=${LOMS_POSTGRES_PASSWORD}
+      - DATABASES_DB=${LOMS_POSTGRES_DB}
+    depends_on:
+      - loms_db
+
   checkout:
     image: checkout
     build: ./checkout/
+    container_name: checkout
+    restart: always
     ports:
       - "8080:8080"
+      - "50051:50051"
+    depends_on:
+      - checkout_db
+      - ch_pgbouncer
+
   loms:
     image: loms
     build: ./loms/
+    container_name: loms
+    restart: always
     ports:
       - "8081:8081"
+      - "50052:50052"
+    depends_on:
+      - loms_db
+      - loms_pgbouncer
+
   # notification:
   #   image: notification
   #   build: ./notification
   #   ports:
   #     - "8082:8082"
+
+
+volumes:
+  checkout_db:
+  loms_db:
