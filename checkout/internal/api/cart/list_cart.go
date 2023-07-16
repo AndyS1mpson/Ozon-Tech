@@ -22,9 +22,6 @@ func (s *Server) ListCart(ctx context.Context, req *cart_v1.ListCartRequest) (*c
 		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 
-	res, err := server.ListCartToRe(cart)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, err.Error())
-	}
+	res := server.ListCartToRe(cart)
 	return res, nil
 }

@@ -3,13 +3,15 @@ package postgres
 
 import (
 	"context"
-	"fmt"
 	"route256/loms/internal/model"
+	"route256/loms/internal/pkg/tracer"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/pgxscan"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -31,20 +33,23 @@ func NewStockRepository(db *pgxpool.Pool) *StockRepository {
 
 // Get stocks where there is a free product
 func (s *StockRepository) GetAvailableStocks(ctx context.Context, sku model.SKU) ([]model.Stock, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "repository/stocks/get_available_stocks")
+	defer span.Finish()
+
 	query, args, err := psql.
 		Select("warehouse_id", "count").
 		From(tableNameStock).
 		Where(sq.Eq{"sku": uint32(sku)}).
 		ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
+		return nil, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to build query"))
 	}
 
 	rows, err := s.db.Query(ctx, query, args...)
 	defer rows.Close()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get stocks: %w", err)
+		return nil, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to get stocks"))
 	}
 	stocks := make([]model.Stock, 0)
 
@@ -52,7 +57,7 @@ func (s *StockRepository) GetAvailableStocks(ctx context.Context, sku model.SKU)
 		var stock model.Stock
 		err := rows.Scan(&stock.WarehouseID, &stock.Count)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan stock: %w", err)
+			return nil, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to scan stock"))
 		}
 		stocks = append(stocks, stock)
 	}
@@ -62,29 +67,32 @@ func (s *StockRepository) GetAvailableStocks(ctx context.Context, sku model.SKU)
 
 // Reserve Item
 func (r *StockRepository) Reserve(ctx context.Context, orderID model.OrderID, sku model.SKU, stock model.Stock) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "repository/stocks/reserve")
+	defer span.Finish()
+
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.RepeatableRead,
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to begin transaction"))
 	}
 
 	err = r.addItemToReserve(ctx, tx, orderID, sku, stock)
 	if err != nil {
 		tx.Rollback(ctx)
-		return fmt.Errorf("failed to add item to reserve: %w", err)
+		return tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to add item to reserve"))
 	}
 
 	err = r.removeItemFromStock(ctx, tx, sku, stock)
 	if err != nil {
 		tx.Rollback(ctx)
-		return fmt.Errorf("failed to remove item from stock: %w", err)
+		return tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to remove item from stock"))
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
-		return fmt.Errorf("commit transaction: %s", err)
+		return tracer.MarkSpanWithError(ctx, errors.Wrap(err, "commit transaction"))
 	}
 
 	return nil
@@ -92,31 +100,34 @@ func (r *StockRepository) Reserve(ctx context.Context, orderID model.OrderID, sk
 
 // Unreserve Item
 func (r *StockRepository) Unreserve(ctx context.Context, orderID model.OrderID, sku model.SKU) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "repository/stocks/unreserve")
+	defer span.Finish()
+
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.RepeatableRead,
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to begin transaction"))
 	}
 
 	unresItems, err := r.removeItemFromReserve(ctx, tx, orderID, sku)
 	if err != nil {
 		tx.Rollback(ctx)
-		return fmt.Errorf("failed to remove item from reserve: %w", err)
+		return tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to remove item from reserve"))
 	}
 
 	for _, item := range unresItems {
 		err = r.addItemToStock(ctx, tx, sku, item)
 		if err != nil {
 			tx.Rollback(ctx)
-			return fmt.Errorf("failed to add item to stock: %w", err)
+			return tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to add item to stock"))
 		}
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
-		return fmt.Errorf("commit transaction: %s", err)
+		return tracer.MarkSpanWithError(ctx, errors.Wrap(err, "commit transaction"))
 	}
 
 	return nil
@@ -124,6 +135,9 @@ func (r *StockRepository) Unreserve(ctx context.Context, orderID model.OrderID, 
 
 // Remove items from reserve
 func (r *StockRepository) WriteOffOrderItems(ctx context.Context, orderID model.OrderID) ([]model.Stock, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "repository/stocks/write_off_order_items")
+	defer span.Finish()
+
 	// Get item warehouse and count for return to stock
 	selectQuery, agrs, err := psql.
 		Select("warehouse_id", "count").
@@ -131,7 +145,7 @@ func (r *StockRepository) WriteOffOrderItems(ctx context.Context, orderID model.
 		Where(sq.Eq{"order_id": orderID}).
 		ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
+		return nil, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to build query"))
 	}
 
 	var resultSQL []struct {
@@ -141,7 +155,7 @@ func (r *StockRepository) WriteOffOrderItems(ctx context.Context, orderID model.
 	err = pgxscan.Select(ctx, r.db, &resultSQL, selectQuery, agrs...)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to remove item from reserve: %w", err)
+		return nil, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to remove item from reserve"))
 	}
 
 	result := make([]model.Stock, len(resultSQL))
@@ -159,12 +173,12 @@ func (r *StockRepository) WriteOffOrderItems(ctx context.Context, orderID model.
 		ToSql()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
+		return nil, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to build query"))
 	}
 
 	_, err = r.db.Exec(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update item: %w", err)
+		return nil, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "failed to update item"))
 	}
 
 	return result, nil
@@ -178,12 +192,12 @@ func (r *StockRepository) addItemToReserve(ctx context.Context, tx pgx.Tx, order
 		Values(orderID, sku, stock.WarehouseID, stock.Count).
 		ToSql()
 	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
+		return errors.Wrap(err, "failed to build query")
 	}
 
 	_, err = tx.Exec(ctx, insertQuery, args...)
 	if err != nil {
-		return fmt.Errorf("failed to add item to reserve: %w", err)
+		return errors.Wrap(err, "failed to add item to reserve")
 	}
 
 	return nil
@@ -194,7 +208,7 @@ func (r *StockRepository) removeItemFromReserve(ctx context.Context, tx pgx.Tx, 
 	// Get item warehouse and count for return to stock
 	selectQuery, agrs, err := psql.Select("warehouse_id", "count").From(tableNameReservedStock).Where(sq.Eq{"order_id": orderID, "sku": sku}).ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
+		return nil, errors.Wrap(err, "failed to build query")
 	}
 
 	var resultSQL []struct {
@@ -204,7 +218,7 @@ func (r *StockRepository) removeItemFromReserve(ctx context.Context, tx pgx.Tx, 
 	err = pgxscan.Select(ctx, r.db, &resultSQL, selectQuery, agrs...)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to remove item from reserve: %w", err)
+		return nil, errors.Wrap(err, "failed to remove item from reserve")
 	}
 	result := make([]model.Stock, len(resultSQL))
 	for i, v := range resultSQL {
@@ -221,12 +235,12 @@ func (r *StockRepository) removeItemFromReserve(ctx context.Context, tx pgx.Tx, 
 		ToSql()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
+		return nil, errors.Wrap(err, "failed to build query")
 	}
 
 	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update item: %w", err)
+		return nil, errors.Wrap(err, "failed to update item")
 	}
 
 	return result, nil
@@ -240,7 +254,7 @@ func (r *StockRepository) addItemToStock(ctx context.Context, tx pgx.Tx, sku mod
 		ToSql()
 
 	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
+		return errors.Wrap(err, "failed to build query")
 	}
 
 	var warehouseID model.WarehouseID
@@ -252,12 +266,12 @@ func (r *StockRepository) addItemToStock(ctx context.Context, tx pgx.Tx, sku mod
 			Values(sku, stock.WarehouseID, stock.Count).
 			ToSql()
 		if err != nil {
-			return fmt.Errorf("failed to build query: %w", err)
+			return errors.Wrap(err, "failed to build query")
 		}
 
 		_, err = tx.Exec(ctx, insertQuery, args...)
 		if err != nil {
-			return fmt.Errorf("failed to add item to reserve: %w", err)
+			return errors.Wrap(err, "failed to add item to reserve")
 		}
 
 	} else if err == nil {
@@ -268,15 +282,15 @@ func (r *StockRepository) addItemToStock(ctx context.Context, tx pgx.Tx, sku mod
 			ToSql()
 
 		if err != nil {
-			return fmt.Errorf("failed to build query: %w", err)
+			return errors.Wrap(err, "failed to build query")
 		}
 
 		_, err = tx.Exec(ctx, updateQuery, args...)
 		if err != nil {
-			return fmt.Errorf("failed to update item: %w", err)
+			return errors.Wrap(err, "failed to update item")
 		}
 	} else {
-		return fmt.Errorf("failed to exec request: %w", err)
+		return errors.Wrap(err, "failed to exec request")
 	}
 
 	return nil
@@ -286,12 +300,12 @@ func (r *StockRepository) addItemToStock(ctx context.Context, tx pgx.Tx, sku mod
 func (r *StockRepository) removeItemFromStock(ctx context.Context, tx pgx.Tx, sku model.SKU, stock model.Stock) error {
 	selectQuery, args, err := psql.Select("count").From(tableNameStock).Where(sq.Eq{"sku": sku, "warehouse_id": stock.WarehouseID}).ToSql()
 	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
+		return errors.Wrap(err, "failed to build query")
 	}
 	var count uint64
 	err = tx.QueryRow(ctx, selectQuery, args...).Scan(&count)
 	if err != nil {
-		return fmt.Errorf("not item in warehouse: %w", err)
+		return errors.Wrap(err, "not item in warehouse")
 	}
 
 	if count-stock.Count == 0 {
@@ -300,12 +314,12 @@ func (r *StockRepository) removeItemFromStock(ctx context.Context, tx pgx.Tx, sk
 			Where(sq.Eq{"sku": uint32(sku), "warehouse_id": stock.WarehouseID}).
 			ToSql()
 		if err != nil {
-			return fmt.Errorf("failed to build query: %w", err)
+			return errors.Wrap(err, "failed to build query")
 		}
 
 		_, err = tx.Exec(ctx, query, args...)
 		if err != nil {
-			return fmt.Errorf("failed to update item: %w", err)
+			return errors.Wrap(err, "failed to update item")
 		}
 	} else {
 		query, args, err := psql.
@@ -315,12 +329,12 @@ func (r *StockRepository) removeItemFromStock(ctx context.Context, tx pgx.Tx, sk
 			ToSql()
 
 		if err != nil {
-			return fmt.Errorf("failed to build query: %w", err)
+			return errors.Wrap(err, "failed to build query")
 		}
 
 		_, err = tx.Exec(ctx, query, args...)
 		if err != nil {
-			return fmt.Errorf("failed to update item: %w", err)
+			return errors.Wrap(err, "failed to update item")
 		}
 	}
 

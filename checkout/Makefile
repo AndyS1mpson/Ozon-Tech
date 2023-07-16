@@ -5,7 +5,9 @@ SMARTIMPORTS=${BINDIR}/smartimports_${GOVER}
 LINTVER=v1.51.1
 LINTBIN=${BINDIR}/lint_${GOVER}_${LINTVER}
 PACKAGE=route256/checkout/cmd/app
+
 PROTOC = PATH="$$PATH:$(BINDIR)" protoc
+LOCAL_MIGRATION_DIR=./migrations
 POSTGRES = ${CHECKOUT_POSTGRES_URL}
 
 all: format build test lint
@@ -13,8 +15,18 @@ all: format build test lint
 build: bindir
 	go build -o ${BINDIR}/app ${PACKAGE}
 
-test:
+unittests:
 	go test ./...
+
+integration-tests:
+	go test ./... -tags=integration
+
+integartion-test:
+	go test ./... -tags=integration
+
+# https://github.com/vektra/mockery
+install-mockery:
+	brew install mockery
 
 run:
 	go run ${PACKAGE}
@@ -43,8 +55,8 @@ install-smartimports: bindir
 
 # Секция работы с миграциями
 migrate:
-	goose -dir ./migrations postgres $(POSTGRES) status && \
-	goose -dir ./migrations postgres $(POSTGRES) up
+	goose -dir ${LOCAL_MIGRATION_DIR} postgres $(POSTGRES) status && \
+	goose -dir ${LOCAL_MIGRATION_DIR} postgres $(POSTGRES) up
 
 # Cекция настройки gRPC
 install-grpc-deps:

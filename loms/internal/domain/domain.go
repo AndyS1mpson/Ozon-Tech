@@ -9,7 +9,7 @@ import (
 // Describe repository for working with orders
 type OrderRepository interface {
 	GetOrder(ctx context.Context, id model.OrderID) (*model.Order, error)
-	CreateOrder(ctx context.Context,  order model.Order) (model.OrderID, error)
+	CreateOrder(ctx context.Context, order model.Order) (model.OrderID, error)
 	ListOrder(ctx context.Context, orderID model.OrderID) (model.OrderWithStatus, error)
 	PayOrder(ctx context.Context, orderID model.OrderID) error
 	CancelOrder(ctx context.Context, orderID model.OrderID) error
@@ -25,16 +25,30 @@ type StockRepository interface {
 	WriteOffOrderItems(ctx context.Context, orderID model.OrderID) ([]model.Stock, error)
 }
 
+// Define notification message
+type OrderStatusNotification struct {
+	UserId  model.UserID
+	OrderID model.OrderID
+	Status  model.OrderStatus
+	Message string
+}
+
+type Notifier interface {
+	SendMessage(message OrderStatusNotification) error
+}
+
 // Provide access to the business logic of the service
 type Service struct {
-	order OrderRepository
-	stock StockRepository
+	order    OrderRepository
+	stock    StockRepository
+	notifier Notifier
 }
 
 // Create a new Service instance
-func New(order OrderRepository, stock StockRepository) *Service {
+func New(order OrderRepository, stock StockRepository, notifier Notifier) *Service {
 	return &Service{
-		order: order,
-		stock: stock,
+		order:    order,
+		stock:    stock,
+		notifier: notifier,
 	}
 }

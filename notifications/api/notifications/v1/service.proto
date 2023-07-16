@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package notifications;
+
+option go_package = "route256/notifications/pkg/notifications_v1";
+
+import "google/api/annotations.proto";
+import "validate/validate.proto";
+
+service Notifications {
+    rpc GetHistoryWithPeriod(GetHistoryWithPeriodRequest) returns(GetHistoryWithPeriodResponse) {
+        option (google.api.http) = {
+            post: "/history"
+            body: "*"
+        };
+    };
+}
+
+message Date {
+    int32 year = 1;
+    int32 month = 2;
+    int32 day = 3;
+  }
+
+message Message {
+    int64 order_id = 1 [(validate.rules).int64.gt = 0];
+    int64 user_id = 2 [(validate.rules).int64.gt = 0];
+    string status = 3;
+    string message = 4;
+}
+
+message GetHistoryWithPeriodRequest {
+    int64 user = 1 [(validate.rules).int64.gt = 0];
+    Date from = 2;
+    Date to = 3;
+    
+}
+
+
+message GetHistoryWithPeriodResponse {
+    repeated Message messages = 1;
+}

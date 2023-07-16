@@ -3,8 +3,7 @@ package domain
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	"github.com/pkg/errors"
 	"route256/checkout/internal/model"
 )
 
@@ -16,7 +15,7 @@ var (
 func (s *Service) AddToCart(ctx context.Context, user int64, sku uint32, count uint16) error {
 	stocks, err := s.lomsChecker.GetStocksBySKU(ctx, sku)
 	if err != nil {
-		return fmt.Errorf("get stocks: %w", err)
+		return errors.Wrap(err, "get stocks")
 	}
 	counter := int64(count)
 	for _, stock := range stocks {
@@ -27,12 +26,12 @@ func (s *Service) AddToCart(ctx context.Context, user int64, sku uint32, count u
 			if err != nil {
 				cart, err = s.cart.CreateCart(ctx, model.UserID(user))
 				if err != nil {
-					return fmt.Errorf("create cart: %w", err)
+					return errors.Wrap(err, "create cart")
 				}
 			}
-			err = s.cart.UpdateOrAddToCart(ctx, int64(cart), sku, count)
+			err = s.cart.UpdateOrAddToCart(ctx, cart, model.SKU(sku), count)
 			if err != nil {
-				return fmt.Errorf("could not add item to cart: %w", err)
+				return errors.Wrap(err, "could not add item to cart")
 			}
 			return nil
 		}

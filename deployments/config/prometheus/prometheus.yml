@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 5s
+  scrape_timeout: 2s
+  evaluation_interval: 5s # Evaluate rules
+
+alerting:
+
+rule_files:
+
+scrape_configs:
+  - job_name: "checkout"
+    static_configs:
+      - targets:
+        - "checkout:8090"
+  - job_name: "loms"
+    static_configs:
+      - targets:
+        - "loms:8081"
+  - job_name: "notifications"
+    static_configs:
+      - targets:
+        - "notifications:8082"

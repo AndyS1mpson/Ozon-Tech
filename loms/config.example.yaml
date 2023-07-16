@@ -1,0 +1,9 @@
+postgres:
+  connection_string: "postgres://username:password@pgbouncer_host:port/db_name?sslmode=disable"
+brokers:
+  - "kafka1:29091"
+  - "kafka2:29092"
+  - "kafka3:29093"
+jaeger:
+  host: "jaeger"
+  port: 6831

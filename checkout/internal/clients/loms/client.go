@@ -4,10 +4,12 @@ package loms
 import (
 	"context"
 
-	"fmt"
 	"route256/checkout/internal/model"
+	"route256/checkout/internal/pkg/tracer"
 	"route256/checkout/pkg/loms_v1"
 
+	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
 
@@ -23,6 +25,9 @@ func New(clientAddress string) *Client {
 
 // Get the quantity of goods from all warehouses from the service loms
 func (c *Client) GetStocksBySKU(ctx context.Context, sku uint32) ([]model.Stock, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "clients/loms/get_stocks_by_sku")
+	defer span.Finish()
+
 	requestStocks := &loms_v1.StocksRequest{
 		Sku: sku,
 	}
@@ -30,7 +35,7 @@ func (c *Client) GetStocksBySKU(ctx context.Context, sku uint32) ([]model.Stock,
 	// Connect to loams service
 	con, err := grpc.Dial(c.lomsAddress, grpc.WithInsecure())
 	if err != nil {
-		return nil, fmt.Errorf("can not connect to server loms: %v", err)
+		return nil, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "can not connect to server loms"))
 	}
 	defer con.Close()
 
@@ -40,7 +45,7 @@ func (c *Client) GetStocksBySKU(ctx context.Context, sku uint32) ([]model.Stock,
 	// Do request
 	resp, err := lomsClient.Stocks(ctx, requestStocks)
 	if err != nil {
-		return nil, fmt.Errorf("send request error: %v", err)
+		return nil, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "send request error"))
 	}
 
 	items := []model.Stock{}
@@ -56,6 +61,9 @@ func (c *Client) GetStocksBySKU(ctx context.Context, sku uint32) ([]model.Stock,
 
 // Create user order
 func (c *Client) CreateOrder(ctx context.Context, user model.UserID, userGoods []model.CartItem) (model.OrderID, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "clients/loms/create_order")
+	defer span.Finish()
+
 	items := make([]*loms_v1.OrderItem, 0, len(userGoods))
 	for _, v := range userGoods {
 		items = append(items, &loms_v1.OrderItem{
@@ -71,7 +79,7 @@ func (c *Client) CreateOrder(ctx context.Context, user model.UserID, userGoods [
 	// Connect to loams service
 	con, err := grpc.Dial(c.lomsAddress, grpc.WithInsecure())
 	if err != nil {
-		return 0, fmt.Errorf("can not connect to server loms: %v", err)
+		return 0, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "can not connect to server loms"))
 	}
 	defer con.Close()
 
@@ -81,7 +89,7 @@ func (c *Client) CreateOrder(ctx context.Context, user model.UserID, userGoods [
 	// Do request
 	resp, err := lomsClient.CreateOrder(ctx, requestPurchase)
 	if err != nil {
-		return 0, fmt.Errorf("send request error: %v", err)
+		return 0, tracer.MarkSpanWithError(ctx, errors.Wrap(err, "send request error"))
 	}
 
 	return model.OrderID(resp.GetOrderID()), nil

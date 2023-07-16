@@ -1,4 +1,6 @@
-/ch_pgdata
-/loms_pgdata
 /.vscode
 .env
+certs/*
+.DS_Store
+/data
+vendor-proto

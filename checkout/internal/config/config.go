@@ -2,9 +2,9 @@
 package config
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -18,8 +18,13 @@ type Config struct {
 		Products string `yaml:"products"`
 	} `yaml:"services"`
 	Postgres struct {
-		ConnectionString string `yaml:"connection_string"`
+		ConnectionString       string `yaml:"connection_string"`
+		TestDBConnectionString string `yaml:"test_db_connection_string"`
 	} `yaml:"postgres"`
+	Jaeger struct {
+		Host string `yaml:"host"`
+		Port string `yaml:"port"`
+	} `yaml:"jaeger"`
 }
 
 // Create a new instance of the config
@@ -29,12 +34,12 @@ func New() (*Config, error) {
 
 	rawYaml, err := os.ReadFile(pathToConfig)
 	if err != nil {
-		return nil, fmt.Errorf("read config file: %w", err)
+		return nil, errors.Wrap(err, "read config file")
 	}
 
 	err = yaml.Unmarshal(rawYaml, &cfg)
 	if err != nil {
-		return nil, fmt.Errorf("parse config file: %w", err)
+		return nil, errors.Wrap(err, "parse config file")
 	}
 
 	return cfg, nil

@@ -19,6 +19,16 @@ type Order struct {
 	Items []OrderItem
 }
 
+type OrderStatus string
+
+const (
+	CreatedStatus  OrderStatus = "new"
+	PaidStatus     OrderStatus = "payed"
+	CanceledStatus OrderStatus = "cancelled"
+	FailedStatus   OrderStatus = "failed"
+	WaitStatus     OrderStatus = "awaiting payment"
+)
+
 // Define user order info with status
 type OrderWithStatus struct {
 	Status string

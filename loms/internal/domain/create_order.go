@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"route256/loms/internal/model"
+
+	"github.com/pkg/errors"
 )
 
 // Create user order
@@ -13,7 +15,17 @@ func (s *Service) CreateOrder(ctx context.Context, order model.Order) (model.Ord
 	// Create order
 	orderID, err := s.order.CreateOrder(ctx, order)
 	if err != nil {
-		return 0, fmt.Errorf("failed to create order: %s", err)
+		return 0, errors.Wrap(err, "failed to create order")
+	}
+
+	err = s.notifier.SendMessage(OrderStatusNotification{
+		UserId: model.UserID(order.User),
+		OrderID: orderID,
+		Status:  model.CreatedStatus,
+		Message: "order is created",
+	})
+	if err != nil {
+		return 0, errors.Wrap(err, "Can not notify about order status")
 	}
 
 	// Reserve items from order
@@ -21,10 +33,17 @@ func (s *Service) CreateOrder(ctx context.Context, order model.Order) (model.Ord
 		stocks, err := s.stock.GetAvailableStocks(ctx, model.SKU(v.SKU))
 		if err != nil {
 			s.order.FailOrder(ctx, orderID)
-			return 0, fmt.Errorf("no available item stocks: %s", err)
+			err = s.notifier.SendMessage(OrderStatusNotification{
+				UserId: model.UserID(order.User),
+				OrderID: orderID,
+				Status:  model.FailedStatus,
+				Message: fmt.Sprintf("no free item: %v for your order", v.SKU),
+			})
+			if err != nil {
+				return 0, errors.Wrap(err, "Can not notify about order status")
+			}
+			return orderID, errors.Wrap(err, "no available item stocks")
 		}
-
-		fmt.Printf("%+v\n", stocks)
 
 		// Reserve the required quantity from available stocks
 		remainingQuantity := v.Count
@@ -50,7 +69,7 @@ func (s *Service) CreateOrder(ctx context.Context, order model.Order) (model.Ord
 				},
 			)
 			if err != nil {
-				return 0, fmt.Errorf("failed to update stock count: %s", err)
+				return orderID, errors.Wrap(err, "failed to update stock count")
 			}
 
 			if remainingQuantity == 0 {
@@ -60,13 +79,32 @@ func (s *Service) CreateOrder(ctx context.Context, order model.Order) (model.Ord
 
 		if remainingQuantity != 0 {
 			s.order.FailOrder(ctx, orderID)
-			return 0, fmt.Errorf("not enough available stocks")
+			err = s.notifier.SendMessage(OrderStatusNotification{
+				UserId: model.UserID(order.User),
+				OrderID: orderID,
+				Status:  model.FailedStatus,
+				Message: fmt.Sprintf("no free item: %v for your order", v.SKU),
+			})
+			if err != nil {
+				return 0, errors.Wrap(err, "Can not notify about order status")
+			}
+			return orderID, errors.Wrap(err, "not enough available stocks")
 		}
 	}
 
 	err = s.order.AwaitPaymentOrder(ctx, orderID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to await payment order: %s", err)
+		return orderID, errors.Wrap(err, "failed to await payment order")
+	}
+
+	err = s.notifier.SendMessage(OrderStatusNotification{
+		UserId: model.UserID(order.User),
+		OrderID: orderID,
+		Status:  model.WaitStatus,
+		Message: "the order has been successfully created and is awaiting payment",
+	})
+	if err != nil {
+		return 0, errors.Wrap(err, "Can not notify about order status")
 	}
 
 	return model.OrderID(orderID), nil

@@ -1,0 +1,297 @@
+version: "3.8"
+services:
+  checkout_db:
+    image: postgres:15.1
+    container_name: checkout_db
+    environment:
+      - POSTGRES_USER=${CH_POSTGRES_USER}
+      - POSTGRES_DB=${CH_POSTGRES_DB}
+      - POSTGRES_PASSWORD=${CH_POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    env_file:
+      - .env
+    volumes:
+      - ../data/ch_pgdata:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $CH_POSTGRES_USER -d $CH_POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+
+  loms_db:
+    image: postgres:15.1
+    container_name: loms_db
+    environment:
+      - POSTGRES_USER=${LOMS_POSTGRES_USER}
+      - POSTGRES_DB=${LOMS_POSTGRES_DB}
+      - POSTGRES_PASSWORD=${LOMS_POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    env_file:
+      - .env
+    volumes:
+      - ../data/loms_pgdata:/var/lib/postgresql/data
+    ports:
+      - 5433:5433
+    command: -p 5433
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $LOMS_POSTGRES_USER -d $LOMS_POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+
+  notifications_db:
+    image: postgres:15.1
+    container_name: notifications_db
+    environment:
+      - POSTGRES_USER=${NOTIF_POSTGRES_USER}
+      - POSTGRES_DB=${NOTIF_POSTGRES_DB}
+      - POSTGRES_PASSWORD=${NOTIF_POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    env_file:
+      - .env
+    volumes:
+      - ../data/notifications_pgdata:/var/lib/postgresql/data
+    ports:
+      - 5434:5434
+    command: -p 5434
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+
+  ch_pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    container_name: ch_pgbouncer
+    restart: always
+    ports:
+      - 6432:6432
+    environment:
+      - DATABASES_HOST=checkout_db
+      - DATABASES_PORT=5432
+      - DATABASES_USER=${CH_POSTGRES_USER}
+      - DATABASES_PASSWORD=${CH_POSTGRES_PASSWORD}
+      - DATABASES_DB=${CH_POSTGRES_DB}
+    depends_on:
+      - checkout_db
+
+  loms_pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    container_name: loms_pgbouncer
+    restart: always
+    ports:
+      - 6433:6432
+    environment:
+      - DATABASES_HOST=loms_db
+      - DATABASES_PORT=5433
+      - DATABASES_USER=${LOMS_POSTGRES_USER}
+      - DATABASES_PASSWORD=${LOMS_POSTGRES_PASSWORD}
+      - DATABASES_DB=${LOMS_POSTGRES_DB}
+    depends_on:
+      - loms_db
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: zookeeper:2888:3888
+    healthcheck:
+      test: echo stat | nc localhost 2181
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    ports:
+      - "2181:2181"
+      - "2888:2888"
+      - "3888:3888"
+
+  kafka1:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka1
+    healthcheck:
+      test: ps augwwx | egrep [S]upportedKafka
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - "9091:9091"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTNERS: LISTNER_INT://kafka1:29091,LISTENER_EXT://0.0.0.0:9091
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: LISTNER_INT://kafka1:29091,LISTENER_EXT://localhost:9091
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTNER_INT:PLAINTEXT,LISTENER_EXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTNER_INT
+      ZOOKEEPER: zookeeper:2181
+
+  kafka2:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka2
+    healthcheck:
+      test: ps augwwx | egrep [S]upportedKafka
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_LISTNERS: LISTNER_INT://kafka2:29092,LISTENER_EXT://0.0.0.0:9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: LISTNER_INT://kafka2:29091,LISTENER_EXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTNER_INT:PLAINTEXT,LISTENER_EXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTNER_INT
+      ZOOKEEPER: zookeeper:2181
+
+  kafka3:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka3
+    healthcheck:
+      test: ps augwwx | egrep [S]upportedKafka
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_LISTNERS: LISTNER_INT://kafka3:29093,LISTENER_EXT://0.0.0.0:9093
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: LISTNER_INT://kafka3:29093,LISTENER_EXT://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTNER_INT:PLAINTEXT,LISTENER_EXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTNER_INT
+      ZOOKEEPER: zookeeper:2181
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    restart: always
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka1:29091,kafka2:29092,kafka3:29093
+      - DYNAMIC_CONFIG_ENABLED=true
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+
+  jaeger:
+    image: jaegertracing/all-in-one
+    container_name: jaeger
+    ports:
+      - 5775:5775/udp
+      - 6831:6831/udp
+      - 6832:6832/udp
+      - 5778:5778
+      - 16686:16686 # web
+      - 14268:14268
+      - 9411:9411
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  grafana:
+    image: grafana/grafana-oss
+    container_name: grafana
+    ports:
+      - 3000:3000
+    volumes:
+      - ../data/grafana:/var/lib/grafana
+    links:
+      - prometheus
+
+  checkout:
+    image: checkout
+    build:
+      context: checkout
+      dockerfile: Dockerfile
+    container_name: checkout
+    restart: always
+    ports:
+      - "8090:8090"
+      - "50051:50051"
+    depends_on:
+      - checkout_db
+      - ch_pgbouncer
+    # logging:
+    #   driver: "fluentd"
+    #   options:
+    #     fluentd-address: localhost:24224
+    #     tag: checkout.logs
+
+  loms:
+    image: loms
+    build:
+      context: loms
+      dockerfile: Dockerfile
+    container_name: loms
+    restart: always
+    ports:
+      - "8081:8081"
+      - "50052:50052"
+    depends_on:
+      - loms_db
+      - loms_pgbouncer
+      - kafka1
+      - kafka2
+      - kafka3
+    # logging:
+    #   driver: "fluentd"
+    #   options:
+    #     fluentd-address: localhost:24225
+    #     tag: loms.logs
+
+  notifications:
+    image: notifications
+    build: 
+      context: ..
+      dockerfile: ./notifications/Dockerfile
+    container_name: notifications
+    restart: always
+    ports:
+      - "8082:8082"
+      - "50053:50053"
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    # logging:
+    #   driver: "fluentd"
+    #   options:
+    #     fluentd-address: localhost:24226
+    #     tag: notifications.logs
+
+volumes:
+  checkout_db:
+  loms_db:

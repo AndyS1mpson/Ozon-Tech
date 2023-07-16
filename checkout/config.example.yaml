@@ -2,3 +2,8 @@ token: "ypur token for access to product service"
 services:
   loms: "loms:50052"
   products: "product service host"
+postgres:
+  connection_string: "postgres://username:pastword@pgbouncer_host:port/db_name?sslmode=disable"
+jaeger:
+  host: "jaeger"
+  port: 6831

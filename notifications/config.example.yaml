@@ -1,0 +1,9 @@
+postgres:
+  connection_string: "postgres://admin:admin@notifications_db:5434/notifications?sslmode=disable"
+brokers:
+  - "kafka1:29091"
+  - "kafka2:29092"
+  - "kafka3:29093"
+telegram:
+  api_key: "your_telegram_api_key"
+  chat_id: 1

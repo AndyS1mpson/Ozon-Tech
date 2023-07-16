@@ -1,4 +1,6 @@
-// Description of things common to the domain layer
+//go:generate mockery --output ./mocks --filename loms_checker_mock.go --name LomsChecker
+//go:generate mockery --output ./mocks --filename product_checker_mock.go --name ProductChecker
+//go:generate mockery --output ./mocks --filename cart_repository_mock.go --name CartRepository
 package domain
 
 import (
@@ -14,14 +16,14 @@ type LomsChecker interface {
 
 // Describes the method of retrieving product information
 type ProductChecker interface {
-	GetProduct(ctx context.Context, sku uint32) (model.Product, error)
+	GetProducts(ctx context.Context, goods []model.CartItem) ([]model.Good, error)
 }
 
 type CartRepository interface {
 	CreateCart(ctx context.Context, user model.UserID) (model.UserCartID, error)
 	GetCartByUserID(ctx context.Context, userID model.UserID) (model.UserCartID, error)
-	UpdateOrAddToCart(ctx context.Context, cart int64, sku uint32, count uint16) error
-	DeleteFromCart(ctx context.Context, user int64, sku uint32, count uint16) error
+	UpdateOrAddToCart(ctx context.Context, cart model.UserCartID, sku model.SKU, count uint16) error
+	DeleteFromCart(ctx context.Context, user model.UserCartID, sku model.SKU, count uint16) error
 	ListCart(ctx context.Context, cart model.UserCartID) ([]model.CartItem, error)
 }
 

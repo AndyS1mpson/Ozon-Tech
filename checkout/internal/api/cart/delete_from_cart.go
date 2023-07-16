@@ -3,6 +3,7 @@ package cart
 
 import (
 	"context"
+	"route256/checkout/internal/model"
 	"route256/checkout/pkg/cart_v1"
 
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -14,6 +15,6 @@ func (s *Server) DeleteFromCart(ctx context.Context, req *cart_v1.DeleteFromCart
 	if err != nil {
 		return nil, err
 	}
-	err = s.service.DeleteFromCart(ctx, req.GetUser(), req.GetSku(), uint16(req.GetCount()))
+	err = s.service.DeleteFromCart(ctx, model.UserID(req.GetUser()), model.SKU(req.GetSku()), uint16(req.GetCount()))
 	return &emptypb.Empty{}, err
 }
