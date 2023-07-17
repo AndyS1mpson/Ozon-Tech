@@ -54,7 +54,7 @@
 
 3. В терминале импортировать соответствующую переменную окружения:
 > CH_POSTGRES_URL  # connection string для сервиса checkout  
-> LOMS_POSTGRES_URL # connection string для сервиса loms
+> LOMS_POSTGRES_URL # connection string для сервиса loms  
 > NOTIF_POSTGRES_URL # connection string для сервиса notifications
 4. выполнить комманду:
 > make migrate
