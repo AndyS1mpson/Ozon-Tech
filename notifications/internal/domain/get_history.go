@@ -2,7 +2,6 @@ package domain
 
 import (
 	"context"
-	"fmt"
 	"route256/notifications/internal/model"
 	"time"
 )
@@ -17,7 +16,6 @@ func (s *Service) GetHistoryWithPeriod(ctx context.Context, userID model.UserID,
 	// try to get from cache
 	cacheVal, ok := s.cache.Get(cacheKey)
 	if ok {
-		fmt.Println("Get from cache")
 		return cacheVal.items, nil
 	}
 	// if not in cache, get from db
@@ -27,7 +25,6 @@ func (s *Service) GetHistoryWithPeriod(ctx context.Context, userID model.UserID,
 	}
 
 	if len(messages) != 0 {
-		fmt.Println("Save to cache")
 		// Save to cache
 		s.cache.Set(cacheKey, CacheVal{items: messages})
 	}
