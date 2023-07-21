@@ -71,7 +71,6 @@
 Jaeger доступен по порту 16686
 
 ## Мониторинг метрик в Prometheus + Grafana
-### Grafana
 1. Перейти на http://localhost:3000
 2. Создать новый Data source:
     a. в поле Prometheus server URL указать http://localhost:9090,
